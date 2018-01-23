@@ -1,0 +1,10 @@
+[
+  {
+    "caption": "NX Coverage: Show File Coverage",
+    "command": "show_nx_coverage"
+  },
+  {
+    "caption": "NX Coverage: Clear File Coverage",
+    "command": "clear_nx_coverage"
+  }
+]
