@@ -52,7 +52,7 @@ def find_lcov_filename(coverage_dir):
   return coverage_file_name
 
 def parse_lcov(report):
-  print(report)
+  # for future use: here we could run all the parsing we need
   return report
 
 def read_lcov(file_path):
@@ -103,7 +103,7 @@ def get_file_info(lcov_data):
 
   #   fdata.coverage = (if fdata.total then fdata.covered/fdata.total else 0)*100
 
-class ShowJsCoverageCommand(sublime_plugin.TextCommand):
+class ShowNxCoverageCommand(sublime_plugin.TextCommand):
   def init(self, view, project_root):
     # get name of currently opened file
     coverage_dir = os.path.join(project_root, getCoverageDir())
@@ -207,7 +207,7 @@ class ShowJsCoverageCommand(sublime_plugin.TextCommand):
       view.add_regions(REGION_KEY_UNCOVERED, badOutlines,
         'markup.deleted.diff', 'dot', flags)
 
-class ClearJsCoverageCommand(sublime_plugin.TextCommand):
+class ClearNxCoverageCommand(sublime_plugin.TextCommand):
 
   """
     Remove highlights created by plugin.
