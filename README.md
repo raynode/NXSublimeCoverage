@@ -14,49 +14,57 @@ Plugin tries to find the latest coverage report in a closest "coverage" director
 
 Configuration
 =================
-We can also configure your where the plugin is going to look for coverage the information. Just go to Preferences > Package Settings > JS Coverage > Settings - User. The configuration should look something like:
+We can also configure your where the plugin is going to look for coverage the information.
+Just go to Preferences > Package Settings > NX Coverage > Settings - User.
+The configuration should look something like:
 
+```json
 {
     "coverageDir": "my_custom_coverage_dir"
 }
+```
 
 
-Karma configuration
+Jest configuration
 ===================
 
-You may need to install coverage plugin
-```
-npm install karma-coverage --save-dev
+Jest has a coverage tool integrated, it is just hidden behind a flag
+```bash
+$ jest --coverage
 ```
 
-Karama should be configured to put coverage report to coverage directory, e.g:
+Jest configuration should output to the coverage directory, the following configuration has typescript support as well
 
 ```javascript
-reporters: ['coverage'],
-...
-
-plugins : [
-...
-  'karma-coverage'
-...
-];
-
-...
-
-preprocessors: {
-  // source files, that you wanna generate coverage for
-  // do not include tests or libraries
-  // (these files will be instrumented by Istanbul)
-  'public/js/*.js': ['coverage']
-},
-
-...
-
-//configure the reporter
-coverageReporter: {
-  type : 'json',
-  dir : 'coverage/'
+module.exports = {
+  testEnvironment: 'node',
+  transform: {
+    '.(ts|tsx)': '<rootDir>/node_modules/ts-jest/preprocessor.js'
+  },
+  clearMocks: true,
+  bail: true,
+  mapCoverage: true,
+  modulePaths: [
+    "src",
+    "node_modules"
+  ],
+  moduleDirectories: [
+    "node_modules",
+    "<rootDir>/src"
+  ],
+  moduleFileExtensions: [
+    'ts',
+    'tsx',
+    'js',
+    'jsx'
+  ],
+  testRegex: '/src/.*\.spec\.[tj]sx?$',
+  coverageDirectory: 'coverage',
+  collectCoverageFrom: [
+    'lib/**/*.{ts,tsx,js,jsx}'
+  ],
 }
+
 ```
 
 Screenshots
