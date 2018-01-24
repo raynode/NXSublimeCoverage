@@ -6,7 +6,7 @@ import fnmatch
 import sublime
 import sublime_plugin
 
-from .lcovParse import walkFile
+from .utils.lcovParse import walkFile
 
 ST3 = int(sublime.version()) >= 3000
 
