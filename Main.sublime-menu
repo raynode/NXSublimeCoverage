@@ -16,14 +16,20 @@
             "children":
             [
               {
-                "command": "open_file",
-                "args": {"file": "${packages}/NXSublimeCoverage/NXSublimeCoverage.sublime-settings"},
-                "caption": "Settings – Default"
+                "caption": "Settings",
+                "command": "edit_settings",
+                "args": {
+                  "base_file": "${packages}/NXSublimeCoverage/NXSublimeCoverage.sublime-settings",
+                  "default": "// NXCoverage Settings - User\n{\n\t$0\n}\n"
+                }
               },
               {
-                "command": "open_file",
-                "args": {"file": "${packages}/User/NXSublimeCoverage.sublime-settings"},
-                "caption": "Settings – User"
+                "caption": "Key Bindings",
+                "command": "edit_settings",
+                "args": {
+                  "base_file": "${packages}/NXSublimeCoverage/keymaps/Default ($platform).sublime-keymap",
+                  "default": "${packages}/User/Default ($platform).sublime-keymap"
+                }
               }
             ]
           }
