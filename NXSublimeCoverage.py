@@ -15,19 +15,25 @@ COVERAGE = 'COVERAGE_JSON'
 
 debug = lambda *args: sys.stdout.write("\n%s" % " ".join(map(str, args)))
 
+REGION_KEY_BRANCH_COVERED = 'NXSublimeCoverageBranchCovered'
+REGION_KEY_BRANCH_UNCOVERED = 'NXSublimeCoverageBranchUncovered'
 REGION_KEY_COVERED = 'NXSublimeCoverageCovered'
 REGION_KEY_UNCOVERED = 'NXSublimeCoverageUnCovered'
 
 
-REGION_TEXT_FLAGS_OK = sublime.DRAW_NO_FILL
-REGION_TEXT_FLAGS_NOK = sublime.DRAW_NO_FILL
-REGION_LINE_FLAGS_OK = sublime.DRAW_NO_FILL | sublime.DRAW_NO_OUTLINE
-REGION_LINE_FLAGS_NOK = sublime.DRAW_NO_FILL | sublime.DRAW_NO_OUTLINE
+REGION_TEXT_FLAGS_COVERED = sublime.DRAW_NO_FILL
+REGION_TEXT_FLAGS_UNCOVERED = sublime.DRAW_NO_FILL
+REGION_LINE_FLAGS_COVERED = sublime.DRAW_NO_FILL | sublime.DRAW_NO_OUTLINE
+REGION_LINE_FLAGS_UNCOVERED = sublime.DRAW_NO_FILL | sublime.DRAW_NO_OUTLINE
+REGION_FLAGS_BRANCH_COVERED = sublime.DRAW_NO_FILL
+REGION_FLAGS_BRANCH_UNCOVERED = sublime.DRAW_NO_FILL
 
-REGION_TEXT_SCOPE_OK = 'markup.inserted'
-REGION_TEXT_SCOPE_NOK = 'markup.deleted'
-REGION_LINE_SCOPE_OK = 'markup.inserted'
-REGION_LINE_SCOPE_NOK = 'markup.deleted'
+REGION_TEXT_SCOPE_COVERED = 'markup.inserted'
+REGION_TEXT_SCOPE_UNCOVERED = 'markup.deleted.diff'
+REGION_LINE_SCOPE_COVERED = 'markup.inserted'
+REGION_LINE_SCOPE_UNCOVERED = 'markup.deleted.diff'
+REGION_SCOPE_BRANCH_COVERED = 'markup.inserted'
+REGION_SCOPE_BRANCH_UNCOVERED = 'markup.changed.diff'
 
 def getCoverageDir():
   settings = sublime.load_settings("NXSublimeCoverage.sublime-settings")
@@ -254,14 +260,20 @@ class ShowNxCoverageCommand(sublime_plugin.TextCommand):
 
 
     if goodOutlines:
-      view.add_regions(REGION_KEY_COVERED, goodOutlines, REGION_LINE_SCOPE_OK, "dot", REGION_LINE_FLAGS_OK)
+      view.add_regions(REGION_KEY_COVERED, goodOutlines, REGION_LINE_SCOPE_COVERED, "dot", REGION_LINE_FLAGS_COVERED)
     if badOutlines:
-      view.add_regions(REGION_KEY_UNCOVERED, badOutlines, REGION_LINE_SCOPE_NOK, "dot", REGION_LINE_FLAGS_NOK)
+      view.add_regions(REGION_KEY_UNCOVERED, badOutlines, REGION_LINE_SCOPE_UNCOVERED, "dot", REGION_LINE_FLAGS_UNCOVERED)
 
   def createRegion(self, row1, col1, row2, col2):
     point1 = self.view.text_point(int(row1) - 1, col1)
     point2 = self.view.text_point(int(row2) - 1, col2)
     return sublime.Region(point1, point2)
+
+  def startEndRegion(self, item):
+    start = item['start']
+    end = item['end']
+    return self.createRegion(start['line'], start['column'], end['line'], end['column'])
+
 
   def parseCoverageReport(self, relative_filename, reports):
     outlines = {}
@@ -284,21 +296,40 @@ class ShowNxCoverageCommand(sublime_plugin.TextCommand):
 
     # the following might need to be done for branches as well
 
+    statementMap = report['statementMap']
+    branchMap = report['branchMap']
+
     # statements
     good_statements = []
     bad_statements = []
     statements = report['s']
 
     for statement_index in statements:
-      statement = report['statementMap'][statement_index]
-      start = statement['start']
-      end = statement['end']
+      statement = statementMap[statement_index]
+      region = self.startEndRegion(statement)
 
-      region = self.createRegion(start['line'], start['column'], end['line'], end['column'])
       if statements[statement_index]:
         good_statements.append(region)
       else:
         bad_statements.append(region)
+
+    good_branches = []
+    bad_branches = []
+    branches = report['b']
+
+    for branch_index in branches:
+      branch = branchMap[branch_index]
+      locations = branch['locations']
+
+      debug('------')
+
+      for index, count in enumerate(branches[branch_index]):
+        debug(locations[index])
+        region = self.startEndRegion(locations[index])
+        if count:
+          good_branches.append(region)
+        else:
+          bad_branches.append(region)
 
       # debug(statement_index, statement_count)
 
@@ -306,9 +337,14 @@ class ShowNxCoverageCommand(sublime_plugin.TextCommand):
     # debug(report)
 
     if good_statements:
-      view.add_regions(REGION_KEY_COVERED, good_statements, REGION_LINE_SCOPE_OK, 'dot', REGION_LINE_FLAGS_OK)
+      view.add_regions(REGION_KEY_COVERED, good_statements, REGION_LINE_SCOPE_COVERED, 'dot', REGION_LINE_FLAGS_COVERED)
     if bad_statements:
-      view.add_regions(REGION_KEY_UNCOVERED, bad_statements, REGION_TEXT_SCOPE_NOK, '', REGION_TEXT_FLAGS_NOK)
+      view.add_regions(REGION_KEY_UNCOVERED, bad_statements, REGION_TEXT_SCOPE_UNCOVERED, '', REGION_TEXT_FLAGS_UNCOVERED)
+
+    if good_branches:
+      view.add_regions(REGION_KEY_BRANCH_COVERED, good_branches, REGION_SCOPE_BRANCH_COVERED, '', REGION_FLAGS_BRANCH_COVERED)
+    if bad_branches:
+      view.add_regions(REGION_KEY_BRANCH_UNCOVERED, bad_branches, REGION_SCOPE_BRANCH_UNCOVERED, '', REGION_FLAGS_BRANCH_UNCOVERED)
 
 class ClearNxCoverageCommand(sublime_plugin.TextCommand):
 
