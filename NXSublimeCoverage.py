@@ -10,10 +10,24 @@ from .utils.lcovParse import walkFile
 
 ST3 = int(sublime.version()) >= 3000
 
+LCOV = 'LCOV_INFO'
+COVERAGE = 'COVERAGE_JSON'
+
 debug = lambda *args: sys.stdout.write("\n%s" % " ".join(map(str, args)))
 
 REGION_KEY_COVERED = 'NXSublimeCoverageCovered'
 REGION_KEY_UNCOVERED = 'NXSublimeCoverageUnCovered'
+
+
+REGION_TEXT_FLAGS_OK = sublime.DRAW_NO_FILL
+REGION_TEXT_FLAGS_NOK = sublime.DRAW_NO_FILL
+REGION_LINE_FLAGS_OK = sublime.DRAW_NO_FILL | sublime.DRAW_NO_OUTLINE
+REGION_LINE_FLAGS_NOK = sublime.DRAW_NO_FILL | sublime.DRAW_NO_OUTLINE
+
+REGION_TEXT_SCOPE_OK = 'markup.inserted'
+REGION_TEXT_SCOPE_NOK = 'markup.deleted'
+REGION_LINE_SCOPE_OK = 'markup.inserted'
+REGION_LINE_SCOPE_NOK = 'markup.deleted'
 
 def getCoverageDir():
   settings = sublime.load_settings("NXSublimeCoverage.sublime-settings")
@@ -31,38 +45,42 @@ def find_project_root(file_path):
   if current:
     return find_project_root(parent)
 
-def find_lcov_filename(coverage_dir):
+def find_file_in_dir(directory, file):
   """
-    Returns latest coverage json for specifed file or None if cannot find it
-    in specifed coverage direcotry
+    Returns latest file in specifed direcotry or None if cannot find it
   """
   files = []
-  for root, dirnames, filenames in os.walk(coverage_dir):
-  	for filename in fnmatch.filter(filenames, 'lcov.info'):
-   		files.append(os.path.join(root, filename))
+  for root, dirnames, filenames in os.walk(directory):
+    for filename in fnmatch.filter(filenames, file):
+      files.append(os.path.join(root, filename))
 
-  debug("found lcov file: " + ",".join(files or []))
-  getmtime = lambda key: os.path.getmtime(os.path.join(coverage_dir, key))
-  coverage_file_name = None
+  getmtime = lambda key: os.path.getmtime(os.path.join(directory, key))
+  found_file = None
 
   if files:
     files.sort(key=getmtime, reverse=True)
-    coverage_file_name = files.pop(0)
+    found_file = files.pop(0)
 
-  return coverage_file_name
+  return found_file
 
-def parse_lcov(report):
-  # for future use: here we could run all the parsing we need
-  return report
-
-def read_lcov(file_path):
-  debug("reading " + file_path)
-  with open(file_path, 'r', encoding='utf-8') as coverage_file:
+def read_file(file_path):
+  debug("reading text file: " + file_path)
+  with open(file_path, 'r', encoding='utf-8') as file:
     try:
-      lcov = walkFile(coverage_file.read())
-      return lcov
+      return file.read()
     except IOError:
       return None
+
+def read_json(file_path):
+  debug("reading json file:" + file_path)
+  with open(file_path, 'r', encoding='utf-8') as file:
+    try:
+      return json.load(file)
+    except IOError:
+      return None
+
+def parse_lcov(lcov_file):
+  return walkFile(lcov_file)
 
 def test_filename(filename, relative_filename):
   return filename.replace("./", "").endswith(relative_filename)
@@ -103,85 +121,119 @@ def get_file_info(lcov_data):
 
   #   fdata.coverage = (if fdata.total then fdata.covered/fdata.total else 0)*100
 
+def clear_coverage(view):
+  view.erase_regions(REGION_KEY_COVERED)
+  view.erase_regions(REGION_KEY_UNCOVERED)
+
+
 class ShowNxCoverageCommand(sublime_plugin.TextCommand):
-  def init(self, view, project_root):
+  def message(self, message):
+    if self.view.window():
+      sublime.status_message(message)
+
+  def readLcovReport(self, coverage_dir, file):
+    report = parse_lcov(read_file(os.path.join(coverage_dir, file)))
+
+    if report:
+      return [LCOV, report]
+
+    debug("Can't read coverage report from file: " + str(file))
+
+    return None
+
+
+  def readCoverageReport(self, coverage_dir, file):
+    report = read_json(os.path.join(coverage_dir, file))
+
+    if report:
+      return [COVERAGE, report]
+
+    debug("Can't read coverage report from file: " + str(file))
+
+    return None
+
+
+  def findReports(self, project_root):
     # get name of currently opened file
     coverage_dir = os.path.join(project_root, getCoverageDir())
-    coverage_filename = find_lcov_filename(coverage_dir)
+
+    coverage_file = find_file_in_dir(coverage_dir, 'coverage-final.json')
+    lcov_info = find_file_in_dir(coverage_dir, 'lcov.info')
 
     debug("project_root", project_root)
     debug("coverage_dir", coverage_dir)
-    debug("coverage_filename", coverage_filename)
+    debug("coverage_file", coverage_file)
+    debug("lcov_info", lcov_info)
 
-    if not coverage_filename:
-      if view.window():
-        sublime.status_message(
-          "Can't find the coverage file in project root: " + str(project_root))
-      return None
+    if coverage_file:
+      return self.readCoverageReport(coverage_dir, coverage_file)
 
-    # Clean up
-    view.erase_status(REGION_KEY_COVERED)
-    view.erase_regions(REGION_KEY_COVERED)
+    if lcov_info:
+      return self.readLcovReport(coverage_dir, lcov_info)
 
-    lcov_data = read_lcov(
-      os.path.join(coverage_dir, coverage_filename))
+    debug("Can't find any coverage files in project root: " + str(project_root))
 
-    report = parse_lcov(lcov_data)
-
-    if report is None:
-      if view.window():
-        sublime.status_message(
-          "Can't read coverage report from file: " + str(coverage_filename))
-      return None
-
-    return report
+    return None
 
   """
     Highlight uncovered lines in the current file
     based on a previous coverage run.
   """
   def run(self, edit):
-    view = self.view
+    clear_coverage(self.view)
 
     # get name of currently opened file
-    filename = view.file_name()
+    filename = self.view.file_name()
     if not filename:
+      self.message("Could not show coverage, no filename associated with this view.")
       return None
+
     project_root = find_project_root(filename)
 
     if not project_root:
-      if view.window():
-        sublime.status_message("Could not find coverage directory.")
+      self.message("Could not find coverage directory.")
       return None
 
     relative_filename = filename.replace(project_root + "/", "")
 
+    reports = self.findReports(project_root)
+
+    if reports is None:
+      self.message("No Reports available")
+      return
+
+    [reportType, reportData] = reports
+
+    debug("Found: ", reportType)
+
+    if reportType is COVERAGE:
+      return self.parseCoverageReport(relative_filename, reportData)
+
+    if reportType is LCOV:
+      return self.parseLcovReport(relative_filename, reportData)
+
+  def parseLcovReport(self, relative_filename, reports):
     outlines = {}
-    report = self.init(view, project_root)
+    view = self.view
 
-    if report is None:
-      return
+    debug("Found reports for the following number of files: " + str(len(reports)))
 
-    debug("Found report for the following number of files: " + str(len(report)))
-
-    if not report:
+    if not reports:
       view.set_status(REGION_KEY_COVERED, "UNCOVERED!")
-      if view.window():
-        sublime.status_message(
-          "Can't find the coverage json file in project root: " + project_root)
+      self.message("Can't find the coverage json file in project root: " + project_root)
       return
 
-    for file_report in report:
+    for file_report in reports:
       filename = file_report.file.replace("./", "")
       if not filename.endswith(relative_filename):
         continue
 
-      debug("Found test report for file " + str(relative_filename))
+      debug("Found test reports for file " + str(relative_filename))
 
       lines = file_report.lines
 
       if not lines:
-        sublime.status_message("No lines found in coverage")
+        self.message("No lines found in coverage")
         return
 
       for line in lines.details:
@@ -199,13 +251,64 @@ class ShowNxCoverageCommand(sublime_plugin.TextCommand):
         badOutlines.append(region)
 
     flags = sublime.DRAW_NO_FILL | sublime.DRAW_NO_OUTLINE if ST3 else sublime.HIDDEN
-    if goodOutlines:
-      view.add_regions(REGION_KEY_COVERED, goodOutlines,
-        'markup.inserted.diff', 'dot', flags)
 
+
+    if goodOutlines:
+      view.add_regions(REGION_KEY_COVERED, goodOutlines, REGION_LINE_SCOPE_OK, "dot", REGION_LINE_FLAGS_OK)
     if badOutlines:
-      view.add_regions(REGION_KEY_UNCOVERED, badOutlines,
-        'markup.deleted.diff', 'dot', flags)
+      view.add_regions(REGION_KEY_UNCOVERED, badOutlines, REGION_LINE_SCOPE_NOK, "dot", REGION_LINE_FLAGS_NOK)
+
+  def createRegion(self, row1, col1, row2, col2):
+    point1 = self.view.text_point(int(row1) - 1, col1)
+    point2 = self.view.text_point(int(row2) - 1, col2)
+    return sublime.Region(point1, point2)
+
+  def parseCoverageReport(self, relative_filename, reports):
+    outlines = {}
+    view = self.view
+
+    debug("Found reports for the following number of files: " + str(len(reports)))
+
+    report = None
+
+    for report_filename in reports:
+      filename = report_filename.replace("./", "")
+      if not filename.endswith(relative_filename):
+        continue
+      report = reports[report_filename]
+      break
+
+    if report is None:
+      self.message("No report found for " + relative_filename)
+      return None
+
+    # the following might need to be done for branches as well
+
+    # statements
+    good_statements = []
+    bad_statements = []
+    statements = report['s']
+
+    for statement_index in statements:
+      statement = report['statementMap'][statement_index]
+      start = statement['start']
+      end = statement['end']
+
+      region = self.createRegion(start['line'], start['column'], end['line'], end['column'])
+      if statements[statement_index]:
+        good_statements.append(region)
+      else:
+        bad_statements.append(region)
+
+      # debug(statement_index, statement_count)
+
+    # debug(relative_filename)
+    # debug(report)
+
+    if good_statements:
+      view.add_regions(REGION_KEY_COVERED, good_statements, REGION_LINE_SCOPE_OK, 'dot', REGION_LINE_FLAGS_OK)
+    if bad_statements:
+      view.add_regions(REGION_KEY_UNCOVERED, bad_statements, REGION_TEXT_SCOPE_NOK, '', REGION_TEXT_FLAGS_NOK)
 
 class ClearNxCoverageCommand(sublime_plugin.TextCommand):
 
@@ -214,6 +317,4 @@ class ClearNxCoverageCommand(sublime_plugin.TextCommand):
   """
 
   def run(self, edit):
-    view = self.view
-    view.erase_regions(REGION_KEY_COVERED)
-    view.erase_regions(REGION_KEY_UNCOVERED)
+    clear_coverage(self.view)
