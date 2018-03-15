@@ -1,4 +1,4 @@
 [
   { "keys": ["super+shift+c"], "command": "show_nx_coverage"},
-  { "keys": ["super+shift+c+x"], "command": "clear_nx_coverage"}
+  { "keys": ["super+shift+x"], "command": "clear_nx_coverage"}
 ]

@@ -25,8 +25,8 @@ REGION_TEXT_FLAGS_COVERED = sublime.DRAW_NO_FILL
 REGION_TEXT_FLAGS_UNCOVERED = sublime.DRAW_NO_FILL
 REGION_LINE_FLAGS_COVERED = sublime.DRAW_NO_FILL | sublime.DRAW_NO_OUTLINE
 REGION_LINE_FLAGS_UNCOVERED = sublime.DRAW_NO_FILL | sublime.DRAW_NO_OUTLINE
-REGION_FLAGS_BRANCH_COVERED = sublime.DRAW_NO_FILL
-REGION_FLAGS_BRANCH_UNCOVERED = sublime.DRAW_NO_FILL
+REGION_FLAGS_BRANCH_COVERED = sublime.DRAW_NO_FILL | sublime.DRAW_NO_OUTLINE | sublime.DRAW_SOLID_UNDERLINE
+REGION_FLAGS_BRANCH_UNCOVERED = sublime.DRAW_NO_FILL | sublime.DRAW_NO_OUTLINE | sublime.DRAW_SOLID_UNDERLINE
 
 REGION_TEXT_SCOPE_COVERED = 'markup.inserted'
 REGION_TEXT_SCOPE_UNCOVERED = 'markup.deleted.diff'
@@ -130,7 +130,8 @@ def get_file_info(lcov_data):
 def clear_coverage(view):
   view.erase_regions(REGION_KEY_COVERED)
   view.erase_regions(REGION_KEY_UNCOVERED)
-
+  view.erase_regions(REGION_KEY_BRANCH_COVERED)
+  view.erase_regions(REGION_KEY_BRANCH_UNCOVERED)
 
 class ShowNxCoverageCommand(sublime_plugin.TextCommand):
   def message(self, message):
@@ -321,20 +322,12 @@ class ShowNxCoverageCommand(sublime_plugin.TextCommand):
       branch = branchMap[branch_index]
       locations = branch['locations']
 
-      debug('------')
-
       for index, count in enumerate(branches[branch_index]):
-        debug(locations[index])
         region = self.startEndRegion(locations[index])
         if count:
           good_branches.append(region)
         else:
           bad_branches.append(region)
-
-      # debug(statement_index, statement_count)
-
-    # debug(relative_filename)
-    # debug(report)
 
     if good_statements:
       view.add_regions(REGION_KEY_COVERED, good_statements, REGION_LINE_SCOPE_COVERED, 'dot', REGION_LINE_FLAGS_COVERED)
