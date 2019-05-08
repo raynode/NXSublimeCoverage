@@ -273,6 +273,8 @@ class ShowNxCoverageCommand(sublime_plugin.TextCommand):
   def startEndRegion(self, item):
     start = item['start']
     end = item['end']
+    if (start['column'] is None) or (start['line'] is None) or (end['column'] is None) or (end['line'] is None):
+      return debug("invalid region", item)
     return self.createRegion(start['line'], start['column'], end['line'], end['column'])
 
 
@@ -308,11 +310,11 @@ class ShowNxCoverageCommand(sublime_plugin.TextCommand):
     for statement_index in statements:
       statement = statementMap[statement_index]
       region = self.startEndRegion(statement)
-
-      if statements[statement_index]:
-        good_statements.append(region)
-      else:
-        bad_statements.append(region)
+      if region:
+        if statements[statement_index]:
+          good_statements.append(region)
+        else:
+          bad_statements.append(region)
 
     good_branches = []
     bad_branches = []
@@ -324,10 +326,11 @@ class ShowNxCoverageCommand(sublime_plugin.TextCommand):
 
       for index, count in enumerate(branches[branch_index]):
         region = self.startEndRegion(locations[index])
-        if count:
-          good_branches.append(region)
-        else:
-          bad_branches.append(region)
+        if region:
+          if count:
+            good_branches.append(region)
+          else:
+            bad_branches.append(region)
 
     if good_statements:
       view.add_regions(REGION_KEY_COVERED, good_statements, REGION_LINE_SCOPE_COVERED, 'dot', REGION_LINE_FLAGS_COVERED)
